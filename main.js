@@ -76,18 +76,44 @@ var mapData = "1111111111";
    mapData += "1010000011";
    mapData += "1111111111";
 
-// PLAYER STUFF
+/// PLAYER STUFF
 var playerX = 1;
 var playerY = 1;
 
-// GAME STUFF
+/// GAME STUFF
 var deltaTimeStr;
 function update(deltaTime) {
-  deltaTimeStr = deltaTime.toPrecision(5);
+  var newPlayerY;
+  var newPlayerX;
 
   if (isUpPressed()) {
-    console.log("Up arrow pressed!");
+    newPlayerY = playerY - 1;
   }
+
+  if (isDownPressed()) {
+    newPlayerY = playerY + 1;
+  }
+
+  if (isLeftPressed()) {
+    newPlayerX = playerX - 1;
+  }
+
+  if (isRightPressed()) {
+    newPlayerX = playerX + 1;
+  }
+
+  // check X collision
+  if (mapData[newPlayerX + mapWidth * playerY] == 0) {
+    playerX = newPlayerX;
+  }
+
+  // check Y collision
+  if (mapData[playerX + mapWidth * newPlayerY] == 0) {
+    playerY = newPlayerY;
+  }
+
+  // get delta time for display
+  deltaTimeStr = deltaTime.toPrecision(5);
 }
 
 ctx.imageSmoothingEnabled = false;
@@ -95,7 +121,7 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // draw map
-  const tileSize = 8;
+  const tileSize = 32;
   for (var x = 0; x < mapWidth; x++) {
     for (var y = 0; y < mapHeight; y++) {
       if (mapData[x + mapWidth * y] == 1) {
