@@ -81,14 +81,27 @@ var playerX = 1;
 var playerY = 1;
 var playerDX = 1;
 var playerDY = 0;
+var cameraPlaneX = 0;
+var cameraPlaneY = 1;
+
+/// OFFSCREEN CANVAS
+const offscreenCanvas = new OffscreenCanvas(32, 32);
+const offscreenCtx = offscreenCanvas.getContext("2d");
+
+var xorAnimationCounter = 0;
+
+var imageData = offscreenCtx.createImageData(
+  offscreenCanvas.width,
+  offscreenCanvas.height
+);
+
+var data = imageData.data;
 
 /// GAME STUFF
 var deltaTimeStr;
 function update(deltaTime) {
   var newPlayerX;
   var newPlayerY;
-  var newPlayerDX = playerDX;
-  var newPlayerDY = playerDY;
 
   if (isUpPressed()) {
     // move forward
@@ -104,14 +117,28 @@ function update(deltaTime) {
 
   if (isLeftPressed()) {
     // rotate 90 degrees counter-clockwise
-    newPlayerDX = playerDY;
-    newPlayerDY = -playerDX;
+    var oldPlayerDX = playerDX;
+    var oldPlayerDY = playerDY;
+    playerDX = oldPlayerDY;
+    playerDY = -oldPlayerDX;
+    
+    var oldCameraPlaneX = cameraPlaneX;
+    var oldCameraPlaneY = cameraPlaneY;
+    cameraPlaneX = oldCameraPlaneY;
+    cameraPlaneY = -oldCameraPlaneX;
   }
 
   if (isRightPressed()) {
     // rotate 90 degrees clockwise
-    newPlayerDX = -playerDY;
-    newPlayerDY = playerDX;
+    var oldPlayerDX = playerDX;
+    var oldPlayerDY = playerDY;
+    playerDX = -oldPlayerDY;
+    playerDY = oldPlayerDX;
+
+    var oldCameraPlaneX = cameraPlaneX;
+    var oldCameraPlaneY = cameraPlaneY;
+    cameraPlaneX = -oldCameraPlaneY;
+    cameraPlaneY = oldCameraPlaneX;
   }
 
   // check X collision
@@ -124,9 +151,8 @@ function update(deltaTime) {
     playerY = newPlayerY;
   }
 
-  // update direction
-  playerDX = newPlayerDX;
-  playerDY = newPlayerDY;
+  // animation thing, delete this later
+  xorAnimationCounter++;
 
   // get delta time for display
   deltaTimeStr = deltaTime.toPrecision(5);
@@ -137,29 +163,68 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // draw map
-  const tileSize = 32;
+  const tileSize = 28;
   ctx.strokeStyle = "black";
   for (var x = 0; x < mapWidth; x++) {
     for (var y = 0; y < mapHeight; y++) {
       if (mapData[x + mapWidth * y] == 1) {
-        ctx.strokeRect(x * tileSize, y * tileSize, tileSize, tileSize);
+        ctx.strokeRect(x * tileSize, y * tileSize + 30, tileSize, tileSize);
       }
     }
   }
 
   // draw player
-  ctx.fillStyle = "blue";
-  ctx.fillRect(playerX * tileSize, playerY * tileSize, tileSize, tileSize);
-  
-  // line for direction
-  ctx.strokeStyle = "red";
+  ctx.fillStyle = "green";
   ctx.beginPath();
-  ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2);
+  ctx.arc(
+    playerX * tileSize + tileSize / 2,
+    playerY * tileSize + tileSize / 2 + 30, tileSize / 4,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+  ctx.closePath();
+
+  // line for direction
+  ctx.strokeStyle = "black";
+  ctx.beginPath();
+  ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2 + 30);
   ctx.lineTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 + 30
   );
   ctx.stroke();
+
+  // line for camera plane
+  ctx.strokeStyle = "blue";
+  ctx.beginPath();
+  ctx.moveTo(
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 2,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 2 + 30
+  );
+  ctx.lineTo(
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 2,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 2 + 30
+  );
+  ctx.stroke();
+
+  // draw xor texture to image data
+  for (var x = 0; x < offscreenCanvas.width; x++) {
+    for (var y = 0; y < offscreenCanvas.height; y++) {
+      var c = x ^ y;
+      var i = (x + offscreenCanvas.width * y) * 4;
+      data[i] = xorAnimationCounter % 255;
+      data[i + 1] = xorAnimationCounter % 255 - c * 8;
+      data[i + 2] = c % 128 * 8;
+      data[i + 3] = 255;
+    }
+  }
+
+  // copy the image data to the offscreen canvas
+  offscreenCtx.putImageData(imageData, 0, 0);
+
+  // draw offscreen canvas on main canvas
+  ctx.drawImage(offscreenCanvas, 288, 0, 512, 384);
 
   // draw delta time
   ctx.fillStyle = "black";
