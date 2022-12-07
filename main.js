@@ -84,10 +84,15 @@ var playerDY = 0;
 var cameraPlaneX = 0;
 var cameraPlaneY = 1;
 
+// temp
+var rayLength;
+var rayLengthMaybe;
+
 /// OFFSCREEN CANVAS
 const offscreenCanvas = new OffscreenCanvas(32, 32);
 const offscreenCtx = offscreenCanvas.getContext("2d");
 
+// temp
 var xorAnimationCounter = 0;
 
 var imageData = offscreenCtx.createImageData(
@@ -100,6 +105,7 @@ var data = imageData.data;
 /// GAME STUFF
 var deltaTimeStr;
 function update(deltaTime) {
+  /// PLAYER MOVEMENT
   var newPlayerX;
   var newPlayerY;
 
@@ -122,6 +128,7 @@ function update(deltaTime) {
     playerDX = oldPlayerDY;
     playerDY = -oldPlayerDX;
     
+    // also rotate the camera plane
     var oldCameraPlaneX = cameraPlaneX;
     var oldCameraPlaneY = cameraPlaneY;
     cameraPlaneX = oldCameraPlaneY;
@@ -135,6 +142,7 @@ function update(deltaTime) {
     playerDX = -oldPlayerDY;
     playerDY = oldPlayerDX;
 
+    // also rotate the camera plane
     var oldCameraPlaneX = cameraPlaneX;
     var oldCameraPlaneY = cameraPlaneY;
     cameraPlaneX = -oldCameraPlaneY;
@@ -149,6 +157,30 @@ function update(deltaTime) {
   // check Y collision
   if (mapData[playerX + mapWidth * newPlayerY] == 0) {
     playerY = newPlayerY;
+  }
+
+  // cast ray
+  var rayStepSize = 0.1;
+  var rayPosX = playerX;
+  var rayPosY = playerY;
+  var rayDX = playerDX;
+  var rayDY = playerDY;
+  rayLength = 0;
+
+  var hit = false;
+  while (!hit) {
+    var rayPosXOld = rayPosX;
+    var rayPosYOld = rayPosY;
+    rayPosX += rayStepSize * rayDX;
+    rayPosY += rayStepSize * rayDY;
+    rayLength += rayStepSize;
+
+    // rounding means the ray position will always fall back to the nearest point that it hit :)
+    if (mapData[Math.round(rayPosX) + Math.round(rayPosY) * mapWidth] == 1) {
+      rayPosX = rayPosXOld;
+      rayPosY = rayPosYOld;
+      hit = true;
+    }
   }
 
   // animation thing, delete this later
@@ -199,13 +231,24 @@ function draw() {
   ctx.strokeStyle = "blue";
   ctx.beginPath();
   ctx.moveTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 2,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 2 + 30
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 4,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 4 + 30
   );
   ctx.lineTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 2,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 2 + 30
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 4,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 4 + 30
   );
+  ctx.stroke();
+
+  // line for raycast
+  ctx.strokeStyle = "red";
+  ctx.beginPath();
+  ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2 + 30);
+  ctx.lineTo(
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize * rayLength,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize * rayLength + 30
+  );
+
   ctx.stroke();
 
   // draw xor texture to image data
