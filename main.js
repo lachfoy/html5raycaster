@@ -1,10 +1,66 @@
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-import { Input } from "/input.js";
-var input = new Input(canvas);
+/// INPUT STUFF
+document.addEventListener("keydown", keyDownHandler, false);
+document.addEventListener("keyup", keyUpHandler, false);
 
-/// MAP stuff
+var upPressed = false;
+var downPressed = false;
+var leftPressed = false;
+var rightPressed = false;
+
+var upPressedOld = false;
+var downPressedOld = false;
+var leftPressedOld = false;
+var rightPressedOld = false;
+
+function keyDownHandler(e) {
+  if (e.key == "ArrowUp") {
+    upPressed = true;
+  }
+  if (e.key == "ArrowDown") {
+    downPressed = true;
+  }
+  if (e.key == "ArrowLeft") {
+    leftPressed = true;
+  }
+  if (e.key == "ArrowRight") {
+    rightPressed = true;
+  }
+}
+
+function keyUpHandler() {
+  upPressed = false;
+  downPressed = false;
+  leftPressed = false;
+  rightPressed = false;
+}
+
+function isUpPressed() {
+  return upPressed && !upPressedOld;
+}
+
+function isDownPressed() {
+  return downPressed && !downPressedOld;
+}
+
+function isLeftPressed() {
+  return leftPressed && !leftPressedOld;
+}
+
+function isRightPressed() {
+  return rightPressed && !rightPressedOld;
+}
+
+function updateInput() {
+  upPressedOld = upPressed;
+  downPressedOld = downPressed;
+  leftPressedOld = leftPressed;
+  rightPressedOld = rightPressed;
+}
+
+/// MAP STUFF
 var mapWidth = 10;
 var mapHeight = 10;
 
@@ -20,13 +76,18 @@ var mapData = "1111111111";
    mapData += "1010000011";
    mapData += "1111111111";
 
-// player stuff
+// PLAYER STUFF
 var playerX = 1;
 var playerY = 1;
 
+// GAME STUFF
 var deltaTimeStr;
 function update(deltaTime) {
   deltaTimeStr = deltaTime.toPrecision(5);
+
+  if (isUpPressed()) {
+    console.log("Up arrow pressed!");
+  }
 }
 
 ctx.imageSmoothingEnabled = false;
@@ -70,7 +131,7 @@ function mainloop(timestamp) {
 
   // updating
   update(deltaTime);
-  input.update();
+  updateInput();
 
   // drawing
   draw();
