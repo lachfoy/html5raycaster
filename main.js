@@ -16,16 +16,16 @@ var leftPressedOld = false;
 var rightPressedOld = false;
 
 function keyDownHandler(e) {
-  if (e.key == "ArrowUp") {
+  if (e.key == "ArrowUp" || e.key == "w") {
     upPressed = true;
   }
-  if (e.key == "ArrowDown") {
+  if (e.key == "ArrowDown" || e.key == "s") {
     downPressed = true;
   }
-  if (e.key == "ArrowLeft") {
+  if (e.key == "ArrowLeft" || e.key == "a") {
     leftPressed = true;
   }
-  if (e.key == "ArrowRight") {
+  if (e.key == "ArrowRight" || e.key == "d") {
     rightPressed = true;
   }
 }
@@ -79,27 +79,39 @@ var mapData = "1111111111";
 /// PLAYER STUFF
 var playerX = 1;
 var playerY = 1;
+var playerDX = 1;
+var playerDY = 0;
 
 /// GAME STUFF
 var deltaTimeStr;
 function update(deltaTime) {
-  var newPlayerY;
   var newPlayerX;
+  var newPlayerY;
+  var newPlayerDX = playerDX;
+  var newPlayerDY = playerDY;
 
   if (isUpPressed()) {
-    newPlayerY = playerY - 1;
+    // move forward
+    newPlayerX = playerX + playerDX;
+    newPlayerY = playerY + playerDY;
   }
 
   if (isDownPressed()) {
-    newPlayerY = playerY + 1;
+    // move backwards
+    newPlayerX = playerX - playerDX;
+    newPlayerY = playerY - playerDY;
   }
 
   if (isLeftPressed()) {
-    newPlayerX = playerX - 1;
+    // rotate 90 degrees counter-clockwise
+    newPlayerDX = playerDY;
+    newPlayerDY = -playerDX;
   }
 
   if (isRightPressed()) {
-    newPlayerX = playerX + 1;
+    // rotate 90 degrees clockwise
+    newPlayerDX = -playerDY;
+    newPlayerDY = playerDX;
   }
 
   // check X collision
@@ -112,6 +124,10 @@ function update(deltaTime) {
     playerY = newPlayerY;
   }
 
+  // update direction
+  playerDX = newPlayerDX;
+  playerDY = newPlayerDY;
+
   // get delta time for display
   deltaTimeStr = deltaTime.toPrecision(5);
 }
@@ -122,6 +138,7 @@ function draw() {
 
   // draw map
   const tileSize = 32;
+  ctx.strokeStyle = "black";
   for (var x = 0; x < mapWidth; x++) {
     for (var y = 0; y < mapHeight; y++) {
       if (mapData[x + mapWidth * y] == 1) {
@@ -133,6 +150,16 @@ function draw() {
   // draw player
   ctx.fillStyle = "blue";
   ctx.fillRect(playerX * tileSize, playerY * tileSize, tileSize, tileSize);
+  
+  // line for direction
+  ctx.strokeStyle = "red";
+  ctx.beginPath();
+  ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2);
+  ctx.lineTo(
+    playerX * tileSize + tileSize / 2 + playerDX * tileSize,
+    playerY * tileSize + tileSize / 2 + playerDY * tileSize
+  );
+  ctx.stroke();
 
   // draw delta time
   ctx.fillStyle = "black";
