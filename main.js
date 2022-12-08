@@ -82,17 +82,29 @@ var playerY = 3;
 var playerDX = 1;
 var playerDY = 0;
 var cameraPlaneX = 0;
-var cameraPlaneY = 1;
+var cameraPlaneY = 0.66; // 2 * atan(0.66 / 1.0) = 66 degrees
 
-// list of rays for debug drawing
-var rays = []; // contains rayDX, rayDY, and rayLength
+/// TEXTURE
+// generate xor texture to use
+var textureSize = 64;
+var textureData = [];
+for(var x = 0; x < textureSize; x++) {
+  for(var y = 0; y < textureSize; y++) {
+    var c = x ^ y;
+    textureData.push(c * 4); // r
+    textureData.push(c * 4); // g
+    textureData.push(c * 4); // b
+    textureData.push(255); // a
+  }
+}
+
+/// ENTITY TEST
+var objectX = 8;
+var objectY = 3;
 
 /// OFFSCREEN CANVAS
 const offscreenCanvas = new OffscreenCanvas(400, 300);
 const offscreenCtx = offscreenCanvas.getContext("2d");
-
-// temp
-var xorAnimationCounter = 0;
 
 var imageData = offscreenCtx.createImageData(
   offscreenCanvas.width,
@@ -100,6 +112,9 @@ var imageData = offscreenCtx.createImageData(
 );
 
 var data = imageData.data;
+
+// list of rays for debug drawing
+var rays = []; // contains rayDX, rayDY, and rayLength
 
 /// GAME STUFF
 var deltaTimeStr;
@@ -202,12 +217,19 @@ function update(deltaTime) {
     // push the ray for debug drawing
     rays.push({rayDX, rayDY, rayLength});
 
-    // calculate lines
+    // calculate the start and end point for drawing a vertical line
     var lineHeight = Math.round(offscreenCanvas.height / 1 / rayLength);
     var drawStart = Math.round(-lineHeight / 2 + offscreenCanvas.height / 2);
     if (drawStart < 0) drawStart = 0; // clamp
     var drawEnd = Math.round(lineHeight / 2 + offscreenCanvas.height / 2);
     if (drawEnd > offscreenCanvas.height) drawEnd = offscreenCanvas.height; // clamp
+
+    // TEXTURE
+    var wallX; // where along the wall was hit
+    wallX = playerY + rayLength * rayDY;
+    wallX -= Math.floor(wallX);
+    var texX = Math.round(wallX * textureSize);
+    texX = textureSize - texX - 1;
 
     // draw lines
     // for shading, scale 0 to some max ray length
@@ -221,10 +243,6 @@ function update(deltaTime) {
       data[i + 3] = 255;
     }
   }
-
-
-  // animation thing, delete this later
-  xorAnimationCounter++;
 
   // get delta time for display
   deltaTimeStr = deltaTime.toPrecision(5);
@@ -292,19 +310,6 @@ function draw() {
     );
     ctx.stroke();
   }
-
-
-  // draw xor texture to image data
-  // for (var x = 0; x < offscreenCanvas.width; x++) {
-  //   for (var y = 0; y < offscreenCanvas.height; y++) {
-  //     var c = x ^ y;
-  //     var i = (x + offscreenCanvas.width * y) * 4;
-  //     data[i] = xorAnimationCounter % 255;
-  //     data[i + 1] = xorAnimationCounter % 255 - c * 8;
-  //     data[i + 2] = c % 128 * 8;
-  //     data[i + 3] = 255;
-  //   }
-  // }
 
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
