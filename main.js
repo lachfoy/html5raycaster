@@ -77,19 +77,18 @@ var mapData = "1111111111";
    mapData += "1111111111";
 
 /// PLAYER STUFF
-var playerX = 1;
-var playerY = 1;
+var playerX = 5;
+var playerY = 3;
 var playerDX = 1;
 var playerDY = 0;
 var cameraPlaneX = 0;
 var cameraPlaneY = 1;
 
-// temp
-var rayLength;
-var rayLengthMaybe;
+// list of rays for debug drawing
+var rays = []; // contains rayDX, rayDY, and rayLength
 
 /// OFFSCREEN CANVAS
-const offscreenCanvas = new OffscreenCanvas(32, 32);
+const offscreenCanvas = new OffscreenCanvas(400, 300);
 const offscreenCtx = offscreenCanvas.getContext("2d");
 
 // temp
@@ -159,29 +158,70 @@ function update(deltaTime) {
     playerY = newPlayerY;
   }
 
+  // clear buffer before drawing rays
+  for (var i = 0; i < data.length; i +=4 ) {
+    data[i] = 0;
+    data[i + 1] = 0;
+    data[i + 2] = 0;
+    data[i + 3] = 255;
+  }
+
   // cast ray
-  var rayStepSize = 0.1;
-  var rayPosX = playerX;
-  var rayPosY = playerY;
-  var rayDX = playerDX;
-  var rayDY = playerDY;
-  rayLength = 0;
+  var rayStepSize = 0.01; // smaller step size is more accurate, but greatly decreases performance
 
-  var hit = false;
-  while (!hit) {
-    var rayPosXOld = rayPosX;
-    var rayPosYOld = rayPosY;
-    rayPosX += rayStepSize * rayDX;
-    rayPosY += rayStepSize * rayDY;
-    rayLength += rayStepSize;
+  // clear ray list
+  rays = [];
+  for (var x = 0; x < offscreenCanvas.width; x++) {
+    var rayPosX = playerX;
+    var rayPosY = playerY;
+    var cameraX = 2 * x / offscreenCanvas.width - 1;
+    var rayDX = playerDX + cameraPlaneX * cameraX;
+    var rayDY = playerDY + cameraPlaneY * cameraX;
+    var rayLength = 0;
+  
+    // while the ray has not hit anything, continue to step it forwards
+    var hit = false;
+    while (!hit) {
+      var rayPosXOld = rayPosX;
+      var rayPosYOld = rayPosY;
+      var rayLengthOld = rayLength;
+      rayPosX += rayStepSize * rayDX;
+      rayPosY += rayStepSize * rayDY;
+      rayLength += rayStepSize;
+  
+      // check whether the ray position is overlapping with a map tile
+      // rounding is entirely necessary!!!
+      if (mapData[Math.round(rayPosX) + Math.round(rayPosY) * mapWidth] == 1) {
+        rayPosX = rayPosXOld;
+        rayPosY = rayPosYOld;
+        rayLength = rayLengthOld;
+        hit = true;
+      }
+    }
 
-    // rounding means the ray position will always fall back to the nearest point that it hit :)
-    if (mapData[Math.round(rayPosX) + Math.round(rayPosY) * mapWidth] == 1) {
-      rayPosX = rayPosXOld;
-      rayPosY = rayPosYOld;
-      hit = true;
+    // push the ray for debug drawing
+    rays.push({rayDX, rayDY, rayLength});
+
+    // calculate lines
+    var lineHeight = Math.round(offscreenCanvas.height / 1 / rayLength);
+    var drawStart = Math.round(-lineHeight / 2 + offscreenCanvas.height / 2);
+    if (drawStart < 0) drawStart = 0; // clamp
+    var drawEnd = Math.round(lineHeight / 2 + offscreenCanvas.height / 2);
+    if (drawEnd > offscreenCanvas.height) drawEnd = offscreenCanvas.height; // clamp
+
+    // draw lines
+    // for shading, scale 0 to some max ray length
+    var maxDistance = 6; // like a fog intensity value
+    var shading = 255 * rayLength / maxDistance;
+    for (var y = drawStart; y < drawEnd; y++) {
+      var i = (x + offscreenCanvas.width * y) * 4;
+      data[i] = 0;
+      data[i + 1] = 0;
+      data[i + 2] = 255 - shading;
+      data[i + 3] = 255;
     }
   }
+
 
   // animation thing, delete this later
   xorAnimationCounter++;
@@ -240,28 +280,31 @@ function draw() {
   );
   ctx.stroke();
 
-  // line for raycast
+  // line for raycasts
   ctx.strokeStyle = "red";
-  ctx.beginPath();
-  ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2 + 30);
-  ctx.lineTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize * rayLength,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize * rayLength + 30
-  );
+  for (var i = 0; i < rays.length; i++)
+  {
+    ctx.beginPath();
+    ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2 + 30);
+    ctx.lineTo(
+      playerX * tileSize + tileSize / 2 + rays[i].rayDX * tileSize * rays[i].rayLength,
+      playerY * tileSize + tileSize / 2 + rays[i].rayDY * tileSize * rays[i].rayLength + 30
+    );
+    ctx.stroke();
+  }
 
-  ctx.stroke();
 
   // draw xor texture to image data
-  for (var x = 0; x < offscreenCanvas.width; x++) {
-    for (var y = 0; y < offscreenCanvas.height; y++) {
-      var c = x ^ y;
-      var i = (x + offscreenCanvas.width * y) * 4;
-      data[i] = xorAnimationCounter % 255;
-      data[i + 1] = xorAnimationCounter % 255 - c * 8;
-      data[i + 2] = c % 128 * 8;
-      data[i + 3] = 255;
-    }
-  }
+  // for (var x = 0; x < offscreenCanvas.width; x++) {
+  //   for (var y = 0; y < offscreenCanvas.height; y++) {
+  //     var c = x ^ y;
+  //     var i = (x + offscreenCanvas.width * y) * 4;
+  //     data[i] = xorAnimationCounter % 255;
+  //     data[i + 1] = xorAnimationCounter % 255 - c * 8;
+  //     data[i + 2] = c % 128 * 8;
+  //     data[i + 3] = 255;
+  //   }
+  // }
 
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
