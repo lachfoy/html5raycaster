@@ -185,9 +185,9 @@
 
     // clear buffer before drawing rays
     for (var i = 0; i < data.length; i +=4 ) {
-      data[i] = 50;
-      data[i + 1] = 50;
-      data[i + 2] = 50;
+      data[i] = 13;
+      data[i + 1] = 13;
+      data[i + 2] = 13;
       data[i + 3] = 255;
     }
 
@@ -275,7 +275,7 @@
       var drawEnd = Math.round(lineHeight / 2 + offscreenCanvas.height / 2);
       if (drawEnd > offscreenCanvas.height) drawEnd = offscreenCanvas.height; // clamp
 
-      // TEXTURE
+      // texture mapping
       var wallX; // where along the wall was hit
       if (side == 0) {
         wallX = playerY + cameraPlaneDist * rayDY;
@@ -296,25 +296,41 @@
       var textureStep = 1.0 * textureSize / lineHeight;
       var texPos = (drawStart - offscreenCanvas.height / 2 + lineHeight / 2) * textureStep;
 
+      // linear fog caluclation
+      var fogStart = 4;
+      var fogFinish = 8;
+      var fogFactor = (fogFinish - cameraPlaneDist) / (fogFinish - fogStart);
+      var fogColorR = 13;
+      var fogColorG = 13;
+      var fogColorB = 13;
+
       // draw lines
-      // for shading, scale 0 to some max ray length
-      var maxDistance = 4; // like a fog intensity value
       for (var y = drawStart; y < drawEnd; y++) {
+        // get the texture color
         var texY = Math.floor(texPos);
         texPos += textureStep;
-
         var textureIndex = (texX + textureSize * texY) * 4;
+        var textureColorR = brickImageData[textureIndex]; // manually brighten up the texture
+        var textureColorG = brickImageData[textureIndex + 1];
+        var textureColorB = brickImageData[textureIndex + 2];
 
-        // manually brighten up the texture
-        var r = brickImageData[textureIndex] * 3 + 50;
-        var g = brickImageData[textureIndex] * 3 + 50;
-        var b = brickImageData[textureIndex] * 3 + 50;
+        // darken the color on Y facing walls
+        if (side == 1) {
+          textureColorR /= 3;
+          textureColorG /= 3;
+          textureColorB /= 3;
+        }
 
+        // apply fog
+        var finalR = (1 - fogFactor) * fogColorR + fogFactor * textureColorR;
+        var finalG = (1 - fogFactor) * fogColorG + fogFactor * textureColorG;
+        var finalB = (1 - fogFactor) * fogColorB + fogFactor * textureColorB;
+
+        // draw the pixel
         var i = (x + offscreenCanvas.width * y) * 4;
-
-        data[i] = r - r * cameraPlaneDist / maxDistance;
-        data[i + 1] = g - g * cameraPlaneDist / maxDistance;
-        data[i + 2] = b - b * cameraPlaneDist / maxDistance;
+        data[i] = finalR;
+        data[i + 1] = finalG;
+        data[i + 2] = finalB;
         data[i + 3] = 255;
       }
     }
