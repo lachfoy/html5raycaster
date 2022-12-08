@@ -77,8 +77,8 @@ var mapData = "1111111111";
    mapData += "1111111111";
 
 /// PLAYER STUFF
-var playerX = 5;
-var playerY = 3;
+var playerX = 5.5;
+var playerY = 3.5;
 var playerDX = 1;
 var playerDY = 0;
 var cameraPlaneX = 0;
@@ -164,12 +164,12 @@ function update(deltaTime) {
   }
 
   // check X collision
-  if (mapData[newPlayerX + mapWidth * playerY] == 0) {
+  if (mapData[Math.floor(newPlayerX) + mapWidth * Math.floor(playerY)] == 0) {
     playerX = newPlayerX;
   }
 
   // check Y collision
-  if (mapData[playerX + mapWidth * newPlayerY] == 0) {
+  if (mapData[Math.floor(playerX) + mapWidth * Math.floor(newPlayerY)] == 0) {
     playerY = newPlayerY;
   }
 
@@ -182,43 +182,93 @@ function update(deltaTime) {
   }
 
   // cast ray
-  var rayStepSize = 0.01; // smaller step size is more accurate, but greatly decreases performance
-
   // clear ray list
   rays = [];
   for (var x = 0; x < offscreenCanvas.width; x++) {
-    var rayPosX = playerX;
-    var rayPosY = playerY;
+    // calculcate camera space
     var cameraX = 2 * x / offscreenCanvas.width - 1;
     var rayDX = playerDX + cameraPlaneX * cameraX;
     var rayDY = playerDY + cameraPlaneY * cameraX;
+
+    // what index of the map we are in
+    var mapPosX = Math.floor(playerX);
+    var mapPosY = Math.floor(playerY);
+
     var rayLength = 0;
+
+    // dda step values
+    // https://lodev.org/cgtutor/images/raycastdelta.gif
+    var sideDistX;
+    var sideDistY;
+    
+    //var deltaDistX = Math.sqrt(1 + (rayDY * rayDY) / (rayDX * rayDX));
+    //var deltaDistY = Math.sqrt(1 + (rayDX * rayDX) / (rayDY * rayDY));
+    var deltaDistX = Math.abs(1 / rayDX);
+    var deltaDistY = Math.abs(1 / rayDY);
+
+    var cameraPlaneDist;
+
+    // direction of step
+    var stepDX;
+    var stepDY;
   
     // while the ray has not hit anything, continue to step it forwards
     var hit = false;
+    var side; // Y facing wall or X facing wall
+
+    // calculate step direction and initial side dist
+    if (rayDX < 0) {
+      stepDX = -1;
+      sideDistX = (playerX - mapPosX) * deltaDistX;
+    } else {
+      stepDX = 1;
+      sideDistX = (mapPosX + 1.0 - playerX) * deltaDistX;
+    }
+
+    if (rayDY < 0) {
+      stepDY = -1;
+      sideDistY = (playerY - mapPosY) * deltaDistY;
+    } else {
+      stepDY = 1;
+      sideDistY = (mapPosY + 1.0 - playerY) * deltaDistY;
+    }
+
+    // step through dda
     while (!hit) {
-      var rayPosXOld = rayPosX;
-      var rayPosYOld = rayPosY;
-      var rayLengthOld = rayLength;
-      rayPosX += rayStepSize * rayDX;
-      rayPosY += rayStepSize * rayDY;
-      rayLength += rayStepSize;
-  
-      // check whether the ray position is overlapping with a map tile
-      // rounding is entirely necessary!!!
-      if (mapData[Math.round(rayPosX) + Math.round(rayPosY) * mapWidth] == 1) {
-        rayPosX = rayPosXOld;
-        rayPosY = rayPosYOld;
-        rayLength = rayLengthOld;
+      if (sideDistX < sideDistY) {
+        sideDistX += deltaDistX;
+        mapPosX += stepDX;
+        side = 0;
+      } else {
+        sideDistY += deltaDistY;
+        mapPosY += stepDY;
+        side = 1;
+      }
+
+      // check if we are inside a map wall tile
+      if (mapData[mapPosX + mapPosY * mapWidth] == 1) {
         hit = true;
       }
     }
 
+    if (side == 0) {
+      cameraPlaneDist = (sideDistX - deltaDistX);
+    } else {
+      cameraPlaneDist = (sideDistY - deltaDistY);
+    }
+
+    var rayLength;
+    if (side == 0) {
+      rayLength = -(deltaDistX - sideDistX);
+    } else {
+      rayLength = -(deltaDistY - sideDistY);
+    }
+
     // push the ray for debug drawing
-    rays.push({rayDX, rayDY, rayLength});
+    rays.push({rayDX, rayDY, rayLength: cameraPlaneDist});
 
     // calculate the start and end point for drawing a vertical line
-    var lineHeight = Math.round(offscreenCanvas.height / 1 / rayLength);
+    var lineHeight = Math.floor(offscreenCanvas.height / cameraPlaneDist);
     var drawStart = Math.round(-lineHeight / 2 + offscreenCanvas.height / 2);
     if (drawStart < 0) drawStart = 0; // clamp
     var drawEnd = Math.round(lineHeight / 2 + offscreenCanvas.height / 2);
@@ -226,20 +276,44 @@ function update(deltaTime) {
 
     // TEXTURE
     var wallX; // where along the wall was hit
-    wallX = playerY + rayLength * rayDY;
+    if (side == 0) {
+      wallX = playerY + cameraPlaneDist * rayDY;
+    } else {
+      wallX = playerX + cameraPlaneDist * rayDX;
+    }
     wallX -= Math.floor(wallX);
-    var texX = Math.round(wallX * textureSize);
-    texX = textureSize - texX - 1;
+
+    var texX = Math.floor(wallX * textureSize);
+    if (side == 0 && rayDX > 0) {
+      texX = textureSize - texX - 1;
+    }
+
+    if (side == 1 && rayDY < 0) {
+      texX = textureSize - texX - 1;
+    }
+
+    var textureStep = 1.0 * textureSize / lineHeight;
+    var texPos = (drawStart - offscreenCanvas.height / 2 + lineHeight / 2) * textureStep;
 
     // draw lines
     // for shading, scale 0 to some max ray length
-    var maxDistance = 6; // like a fog intensity value
-    var shading = 255 * rayLength / maxDistance;
+    var maxDistance = 3; // like a fog intensity value
+    var shading = 255 * cameraPlaneDist / maxDistance;
     for (var y = drawStart; y < drawEnd; y++) {
+      var texY = Math.floor(texPos);
+      texPos += textureStep;
+
+      var textureIndex = (texX + textureSize * texY) * 4;
+
+      var r = textureData[textureIndex];
+      var g = textureData[textureIndex];
+      var b = textureData[textureIndex];
+
       var i = (x + offscreenCanvas.width * y) * 4;
-      data[i] = 0;
-      data[i + 1] = 0;
-      data[i + 2] = 255 - shading;
+
+      data[i] = r - r * cameraPlaneDist / maxDistance;
+      data[i + 1] = g - g * cameraPlaneDist / maxDistance;
+      data[i + 2] = b - b * cameraPlaneDist / maxDistance;
       data[i + 3] = 255;
     }
   }
@@ -267,8 +341,8 @@ function draw() {
   ctx.fillStyle = "green";
   ctx.beginPath();
   ctx.arc(
-    playerX * tileSize + tileSize / 2,
-    playerY * tileSize + tileSize / 2 + 30, tileSize / 4,
+    playerX * tileSize,
+    playerY * tileSize + 30, tileSize / 4,
     0,
     Math.PI * 2
   );
@@ -278,10 +352,10 @@ function draw() {
   // line for direction
   ctx.strokeStyle = "black";
   ctx.beginPath();
-  ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2 + 30);
+  ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
   ctx.lineTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 + 30
+    playerX * tileSize + playerDX * tileSize / 2,
+    playerY * tileSize + playerDY * tileSize / 2 + 30
   );
   ctx.stroke();
 
@@ -289,12 +363,12 @@ function draw() {
   ctx.strokeStyle = "blue";
   ctx.beginPath();
   ctx.moveTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 4,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 4 + 30
+    playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 4,
+    playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 4 + 30
   );
   ctx.lineTo(
-    playerX * tileSize + tileSize / 2 + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 4,
-    playerY * tileSize + tileSize / 2 + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 4 + 30
+    playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 4,
+    playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 4 + 30
   );
   ctx.stroke();
 
@@ -303,10 +377,10 @@ function draw() {
   for (var i = 0; i < rays.length; i++)
   {
     ctx.beginPath();
-    ctx.moveTo(playerX * tileSize + tileSize / 2, playerY * tileSize + tileSize / 2 + 30);
+    ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
     ctx.lineTo(
-      playerX * tileSize + tileSize / 2 + rays[i].rayDX * tileSize * rays[i].rayLength,
-      playerY * tileSize + tileSize / 2 + rays[i].rayDY * tileSize * rays[i].rayLength + 30
+      playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength,
+      playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength + 30
     );
     ctx.stroke();
   }
