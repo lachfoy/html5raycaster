@@ -94,8 +94,8 @@ imgLoaderCtx.drawImage(brickImg, 0, 0);
 const brickImgData = imgLoaderCtx.getImageData(0, 0, wallTextureSize, wallTextureSize).data;
 
 /// ENTITY TEST
-var spriteX = 8;
-var spriteY = 3;
+var spriteX = 7.5;
+var spriteY = 3.5;
 var spriteScreenX;
 var spriteHeight;
 
@@ -368,6 +368,19 @@ function draw() {
     }
   }
 
+  // lines for raycasts
+  ctx.strokeStyle = "#ff000011";
+  for (var i = 0; i < rays.length; i++)
+  {
+    ctx.beginPath();
+    ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
+    ctx.lineTo(
+      playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength,
+      playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength + 30
+    );
+    ctx.stroke();
+  }
+
   // draw player
   ctx.fillStyle = "green";
   ctx.beginPath();
@@ -394,35 +407,34 @@ function draw() {
   ctx.strokeStyle = "blue";
   ctx.beginPath();
   ctx.moveTo(
-    playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 4,
-    playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 4 + 30
+    playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 2,
+    playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 2 + 30
   );
   ctx.lineTo(
-    playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 4,
-    playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 4 + 30
+    playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 2,
+    playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 2 + 30
   );
   ctx.stroke();
 
-  // line for raycasts
-  ctx.strokeStyle = "red";
-  for (var i = 0; i < rays.length; i++)
-  {
-    ctx.beginPath();
-    ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
-    ctx.lineTo(
-      playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength,
-      playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength + 30
-    );
-    ctx.stroke();
-  }
+  // draw sprite
+  ctx.fillStyle = "purple";
+  ctx.beginPath();
+  ctx.arc(
+    spriteX * tileSize,
+    spriteY * tileSize + 30, tileSize / 4,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+  ctx.closePath();
 
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
 
-  // test drawing goblin onto the offscreen canvas
+  // test drawing sprite onto the offscreen canvas
   offscreenCtx.drawImage(
     goblinImg,
-    spriteScreenX,
+    spriteScreenX - spriteHeight / 2,
     offscreenCanvas.height / 2 - spriteHeight / 2,
     spriteHeight, spriteHeight
   );
