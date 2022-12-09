@@ -392,12 +392,13 @@ function draw() {
   offscreenCtx.putImageData(imageData, 0, 0);
 
   // test drawing goblin onto the offscreen canvas
-  const goblinSize = 256;
+  const goblinSize = 280;
   offscreenCtx.drawImage(
     goblinImg,
     offscreenCanvas.width / 2 - goblinSize / 2,
-    offscreenCanvas.height / 2 - goblinSize / 2 - 20,
-    goblinSize, goblinSize);
+    offscreenCanvas.height / 2 - goblinSize / 2 - goblinSize / 10,
+    goblinSize, goblinSize
+  );
 
   // draw offscreen canvas on main canvas
   ctx.drawImage(offscreenCanvas, 288, 0, 512, 384);
