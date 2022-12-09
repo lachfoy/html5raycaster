@@ -94,8 +94,10 @@ imgLoaderCtx.drawImage(brickImg, 0, 0);
 const brickImgData = imgLoaderCtx.getImageData(0, 0, wallTextureSize, wallTextureSize).data;
 
 /// ENTITY TEST
-var objectX = 8;
-var objectY = 3;
+var spriteX = 8;
+var spriteY = 3;
+var spriteScreenX;
+var spriteHeight;
 
 /// OFFSCREEN CANVAS
 const offscreenCanvas = new OffscreenCanvas(400, 300);
@@ -107,7 +109,11 @@ var imageData = offscreenCtx.createImageData(
 );
 offscreenCtx.imageSmoothingEnabled = false;
 
+// offscreen canvas pixel buffer
 var data = imageData.data;
+
+// 1d depth buffer
+var zBuffer = new Float32Array(offscreenCanvas.width);
 
 // list of rays for debug drawing
 var rays = []; // contains rayDX, rayDY, and rayLength
@@ -319,7 +325,29 @@ function update(deltaTime) {
       data[i + 2] = finalB;
       data[i + 3] = 255;
     }
+
+    // write to the z buffer
+    zBuffer[x] = cameraPlaneDist;
   }
+
+  // for distance sorting, not used
+  var spriteDistance = (
+    (playerX - spriteX) * (playerX - spriteX) +
+    (playerY - spriteY) * (playerY - spriteY)
+  );
+
+  // translation?
+  var spriteXTranslated = spriteX - playerX;
+  var spriteYTranslated = spriteY - playerY;
+
+  // inverse camera matrix
+  var invDet = 1.0 / (cameraPlaneX * playerDY - playerDX * cameraPlaneY);
+
+  var spriteTransformX = invDet * (playerDY * spriteXTranslated - playerDX * spriteYTranslated);
+  var spriteTransformY = invDet * (-cameraPlaneY * spriteXTranslated + cameraPlaneX * spriteYTranslated); // depth
+
+  spriteScreenX = Math.floor((offscreenCanvas.width / 2) * (1 + spriteTransformX / spriteTransformY));
+  spriteHeight = Math.abs(Math.floor(offscreenCanvas.height / spriteTransformY));
 
   // get delta time for display
   deltaTimeStr = deltaTime.toPrecision(5);
@@ -392,12 +420,11 @@ function draw() {
   offscreenCtx.putImageData(imageData, 0, 0);
 
   // test drawing goblin onto the offscreen canvas
-  const goblinSize = 280;
   offscreenCtx.drawImage(
     goblinImg,
-    offscreenCanvas.width / 2 - goblinSize / 2,
-    offscreenCanvas.height / 2 - goblinSize / 2 - goblinSize / 10,
-    goblinSize, goblinSize
+    spriteScreenX,
+    offscreenCanvas.height / 2 - spriteHeight / 2,
+    spriteHeight, spriteHeight
   );
 
   // draw offscreen canvas on main canvas
