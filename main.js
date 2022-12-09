@@ -105,6 +105,7 @@ var imageData = offscreenCtx.createImageData(
   offscreenCanvas.width,
   offscreenCanvas.height
 );
+offscreenCtx.imageSmoothingEnabled = false;
 
 var data = imageData.data;
 
@@ -390,11 +391,16 @@ function draw() {
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
 
+  // test drawing goblin onto the offscreen canvas
+  const goblinSize = 256;
+  offscreenCtx.drawImage(
+    goblinImg,
+    offscreenCanvas.width / 2 - goblinSize / 2,
+    offscreenCanvas.height / 2 - goblinSize / 2 - 20,
+    goblinSize, goblinSize);
+
   // draw offscreen canvas on main canvas
   ctx.drawImage(offscreenCanvas, 288, 0, 512, 384);
-
-  // test drawing goblin
-  ctx.drawImage(goblinImg, 100, 400, 128, 128);
 
   // draw delta time
   ctx.fillStyle = "black";
