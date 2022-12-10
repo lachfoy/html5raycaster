@@ -84,6 +84,22 @@ var playerDY = 0;
 var cameraPlaneX = 0;
 var cameraPlaneY = 0.66; // 2 * atan(0.66 / 1.0) = 66 degrees
 
+// player animation queue stores n number of player position states and animates smoothly between them
+const maxPlayerPositionStates = 2;
+var playerAnimationQueue = [];
+const timeToCompletePerAnimation = 0.5;
+var currentTimeToCompleteTimer = 0.0;
+
+// push initial player state
+playerAnimationQueue.push({
+  playerX,
+  playerY,
+  playerDX,
+  playerDY,
+  cameraPlaneX,
+  cameraPlaneY
+});
+
 /// TEXTURE
 const goblinImg = document.getElementById("goblinImg");
 const brickImg = document.getElementById("brickImg");
@@ -122,58 +138,119 @@ var rays = []; // contains rayDX, rayDY, and rayLength
 var deltaTimeStr;
 function update(deltaTime) {
   /// PLAYER MOVEMENT
-  var newPlayerX;
-  var newPlayerY;
+  // player can ONLY move if the animation queue has a free spot. otherwise the animation queue has to "catch up"
+  if (playerAnimationQueue.length < maxPlayerPositionStates) {
+    // get an "empty" state struct to fill
+    var playerPositionState = {
+      playerX,
+      playerY,
+      playerDX,
+      playerDY,
+      cameraPlaneX,
+      cameraPlaneY
+    };
 
-  if (isUpPressed()) {
-    // move forward
-    newPlayerX = playerX + playerDX;
-    newPlayerY = playerY + playerDY;
-  }
+    var newPlayerX;
+    var newPlayerY;
 
-  if (isDownPressed()) {
-    // move backwards
-    newPlayerX = playerX - playerDX;
-    newPlayerY = playerY - playerDY;
-  }
+    if (isUpPressed()) {
+      // move forward
+      newPlayerX = playerX + playerDX;
+      newPlayerY = playerY + playerDY;
+    }
 
-  if (isLeftPressed()) {
-    // rotate 90 degrees counter-clockwise
-    var oldPlayerDX = playerDX;
-    var oldPlayerDY = playerDY;
-    playerDX = oldPlayerDY;
-    playerDY = -oldPlayerDX;
+    if (isDownPressed()) {
+      // move backwards
+      newPlayerX = playerX - playerDX;
+      newPlayerY = playerY - playerDY;
+    }
+
+    if (isLeftPressed()) {
+      // rotate 90 degrees counter-clockwise
+      var oldPlayerDX = playerDX;
+      var oldPlayerDY = playerDY;
+      playerDX = oldPlayerDY;
+      playerDY = -oldPlayerDX;
+      
+      // also rotate the camera plane
+      var oldCameraPlaneX = cameraPlaneX;
+      var oldCameraPlaneY = cameraPlaneY;
+      cameraPlaneX = oldCameraPlaneY;
+      cameraPlaneY = -oldCameraPlaneX;
+    }
+
+    if (isRightPressed()) {
+      // rotate 90 degrees clockwise
+      var oldPlayerDX = playerDX;
+      var oldPlayerDY = playerDY;
+      playerDX = -oldPlayerDY;
+      playerDY = oldPlayerDX;
+
+      // also rotate the camera plane
+      var oldCameraPlaneX = cameraPlaneX;
+      var oldCameraPlaneY = cameraPlaneY;
+      cameraPlaneX = -oldCameraPlaneY;
+      cameraPlaneY = oldCameraPlaneX;
+    }
+
+    // check X collision
+    if (mapData[Math.floor(newPlayerX) + mapWidth * Math.floor(playerY)] == 0) {
+      //playerX = newPlayerX;
+
+      playerPositionState.playerX = newPlayerX;
+    }
+
+    // check Y collision
+    if (mapData[Math.floor(playerX) + mapWidth * Math.floor(newPlayerY)] == 0) {
+      //playerY = newPlayerY;
+
+      playerPositionState.playerY = newPlayerY;
+    }
+
+    // only push to the queue if it is a "new" state
+    const matchingStates = (state1, state2) => {
+      return (
+        state1.playerX == state2.playerX &&
+        state1.playerY == state2.playerY &&
+        state1.playerDX == state2.playerDX &&
+        state1.playerDY == state2.playerDY &&
+        state1.cameraPlaneX == state2.cameraPlaneX &&
+        state1.cameraPlaneY == state2.cameraPlaneY
+      );
+    }
+
+    if (!matchingStates(playerPositionState, playerAnimationQueue[0])) {
+      playerAnimationQueue.push(playerPositionState);
+    }
+      
     
-    // also rotate the camera plane
-    var oldCameraPlaneX = cameraPlaneX;
-    var oldCameraPlaneY = cameraPlaneY;
-    cameraPlaneX = oldCameraPlaneY;
-    cameraPlaneY = -oldCameraPlaneX;
+
+  }
+  console.log(playerAnimationQueue);
+  console.log(playerAnimationQueue.length);
+
+  /// PLAYER VIEW ANIMATION
+  if (playerAnimationQueue.length > 1) {
+    if (currentTimeToCompleteTimer < timeToCompletePerAnimation) {
+      // completion scaled to a 0 to 1 range
+      var currentCompletion = 1.0 * (currentTimeToCompleteTimer / timeToCompletePerAnimation);
+
+      // lerp
+      playerX += (playerAnimationQueue[playerAnimationQueue.length - 1].playerX - playerX) * currentCompletion;
+      playerY += (playerAnimationQueue[playerAnimationQueue.length - 1].playerY - playerY) * currentCompletion;
+      playerDX += (playerAnimationQueue[playerAnimationQueue.length - 1].playerDX - playerDX) * currentCompletion;
+      playerDY += (playerAnimationQueue[playerAnimationQueue.length - 1].playerDY - playerDY) * currentCompletion;
+      cameraPlaneX += (playerAnimationQueue[playerAnimationQueue.length - 1].cameraPlaneX - cameraPlaneX) * currentCompletion;
+      cameraPlaneY += (playerAnimationQueue[playerAnimationQueue.length - 1].cameraPlaneY - cameraPlaneY) * currentCompletion;
+  
+      currentTimeToCompleteTimer += deltaTime;
+    } else {
+      playerAnimationQueue.shift(); // remove the first item on the queue
+      currentTimeToCompleteTimer = 0.0; // reset the timer to 0
+    }
   }
 
-  if (isRightPressed()) {
-    // rotate 90 degrees clockwise
-    var oldPlayerDX = playerDX;
-    var oldPlayerDY = playerDY;
-    playerDX = -oldPlayerDY;
-    playerDY = oldPlayerDX;
-
-    // also rotate the camera plane
-    var oldCameraPlaneX = cameraPlaneX;
-    var oldCameraPlaneY = cameraPlaneY;
-    cameraPlaneX = -oldCameraPlaneY;
-    cameraPlaneY = oldCameraPlaneX;
-  }
-
-  // check X collision
-  if (mapData[Math.floor(newPlayerX) + mapWidth * Math.floor(playerY)] == 0) {
-    playerX = newPlayerX;
-  }
-
-  // check Y collision
-  if (mapData[Math.floor(playerX) + mapWidth * Math.floor(newPlayerY)] == 0) {
-    playerY = newPlayerY;
-  }
+  
 
   // clear buffer before drawing rays
   for (var i = 0; i < data.length; i +=4 ) {
