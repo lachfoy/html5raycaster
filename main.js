@@ -84,6 +84,22 @@ var playerDY = 0;
 var cameraPlaneX = 0;
 var cameraPlaneY = 0.66; // 2 * atan(0.66 / 1.0) = 66 degrees
 
+// player animation queue stores n number of player position states and animates smoothly between them
+const maxPlayerPositionStates = 2;
+var playerAnimationQueue = [];
+const timeToCompletePerAnimation = 0.5;
+var currentTimeToCompleteTimer = 0.0;
+
+// push initial player state
+playerAnimationQueue.push({
+  playerX,
+  playerY,
+  playerDX,
+  playerDY,
+  cameraPlaneX,
+  cameraPlaneY
+});
+
 /// TEXTURE
 const goblinImg = document.getElementById("goblinImg");
 const brickImg = document.getElementById("brickImg");
@@ -94,8 +110,10 @@ imgLoaderCtx.drawImage(brickImg, 0, 0);
 const brickImgData = imgLoaderCtx.getImageData(0, 0, wallTextureSize, wallTextureSize).data;
 
 /// ENTITY TEST
-var objectX = 8;
-var objectY = 3;
+var spriteX = 7.5;
+var spriteY = 3.5;
+var spriteScreenX;
+var spriteHeight;
 
 /// OFFSCREEN CANVAS
 const offscreenCanvas = new OffscreenCanvas(400, 300);
@@ -107,7 +125,11 @@ var imageData = offscreenCtx.createImageData(
 );
 offscreenCtx.imageSmoothingEnabled = false;
 
+// offscreen canvas pixel buffer
 var data = imageData.data;
+
+// 1d depth buffer
+var zBuffer = new Float32Array(offscreenCanvas.width);
 
 // list of rays for debug drawing
 var rays = []; // contains rayDX, rayDY, and rayLength
@@ -116,58 +138,119 @@ var rays = []; // contains rayDX, rayDY, and rayLength
 var deltaTimeStr;
 function update(deltaTime) {
   /// PLAYER MOVEMENT
-  var newPlayerX;
-  var newPlayerY;
+  // player can ONLY move if the animation queue has a free spot. otherwise the animation queue has to "catch up"
+  if (playerAnimationQueue.length < maxPlayerPositionStates) {
+    // get an "empty" state struct to fill
+    var playerPositionState = {
+      playerX,
+      playerY,
+      playerDX,
+      playerDY,
+      cameraPlaneX,
+      cameraPlaneY
+    };
 
-  if (isUpPressed()) {
-    // move forward
-    newPlayerX = playerX + playerDX;
-    newPlayerY = playerY + playerDY;
-  }
+    var newPlayerX;
+    var newPlayerY;
 
-  if (isDownPressed()) {
-    // move backwards
-    newPlayerX = playerX - playerDX;
-    newPlayerY = playerY - playerDY;
-  }
+    if (isUpPressed()) {
+      // move forward
+      newPlayerX = playerX + playerDX;
+      newPlayerY = playerY + playerDY;
+    }
 
-  if (isLeftPressed()) {
-    // rotate 90 degrees counter-clockwise
-    var oldPlayerDX = playerDX;
-    var oldPlayerDY = playerDY;
-    playerDX = oldPlayerDY;
-    playerDY = -oldPlayerDX;
+    if (isDownPressed()) {
+      // move backwards
+      newPlayerX = playerX - playerDX;
+      newPlayerY = playerY - playerDY;
+    }
+
+    if (isLeftPressed()) {
+      // rotate 90 degrees counter-clockwise
+      var oldPlayerDX = playerDX;
+      var oldPlayerDY = playerDY;
+      playerDX = oldPlayerDY;
+      playerDY = -oldPlayerDX;
+      
+      // also rotate the camera plane
+      var oldCameraPlaneX = cameraPlaneX;
+      var oldCameraPlaneY = cameraPlaneY;
+      cameraPlaneX = oldCameraPlaneY;
+      cameraPlaneY = -oldCameraPlaneX;
+    }
+
+    if (isRightPressed()) {
+      // rotate 90 degrees clockwise
+      var oldPlayerDX = playerDX;
+      var oldPlayerDY = playerDY;
+      playerDX = -oldPlayerDY;
+      playerDY = oldPlayerDX;
+
+      // also rotate the camera plane
+      var oldCameraPlaneX = cameraPlaneX;
+      var oldCameraPlaneY = cameraPlaneY;
+      cameraPlaneX = -oldCameraPlaneY;
+      cameraPlaneY = oldCameraPlaneX;
+    }
+
+    // check X collision
+    if (mapData[Math.floor(newPlayerX) + mapWidth * Math.floor(playerY)] == 0) {
+      //playerX = newPlayerX;
+
+      playerPositionState.playerX = newPlayerX;
+    }
+
+    // check Y collision
+    if (mapData[Math.floor(playerX) + mapWidth * Math.floor(newPlayerY)] == 0) {
+      //playerY = newPlayerY;
+
+      playerPositionState.playerY = newPlayerY;
+    }
+
+    // only push to the queue if it is a "new" state
+    const matchingStates = (state1, state2) => {
+      return (
+        state1.playerX == state2.playerX &&
+        state1.playerY == state2.playerY &&
+        state1.playerDX == state2.playerDX &&
+        state1.playerDY == state2.playerDY &&
+        state1.cameraPlaneX == state2.cameraPlaneX &&
+        state1.cameraPlaneY == state2.cameraPlaneY
+      );
+    }
+
+    if (!matchingStates(playerPositionState, playerAnimationQueue[0])) {
+      playerAnimationQueue.push(playerPositionState);
+    }
+      
     
-    // also rotate the camera plane
-    var oldCameraPlaneX = cameraPlaneX;
-    var oldCameraPlaneY = cameraPlaneY;
-    cameraPlaneX = oldCameraPlaneY;
-    cameraPlaneY = -oldCameraPlaneX;
+
+  }
+  console.log(playerAnimationQueue);
+  console.log(playerAnimationQueue.length);
+
+  /// PLAYER VIEW ANIMATION
+  if (playerAnimationQueue.length > 1) {
+    if (currentTimeToCompleteTimer < timeToCompletePerAnimation) {
+      // completion scaled to a 0 to 1 range
+      var currentCompletion = 1.0 * (currentTimeToCompleteTimer / timeToCompletePerAnimation);
+
+      // lerp
+      playerX += (playerAnimationQueue[playerAnimationQueue.length - 1].playerX - playerX) * currentCompletion;
+      playerY += (playerAnimationQueue[playerAnimationQueue.length - 1].playerY - playerY) * currentCompletion;
+      playerDX += (playerAnimationQueue[playerAnimationQueue.length - 1].playerDX - playerDX) * currentCompletion;
+      playerDY += (playerAnimationQueue[playerAnimationQueue.length - 1].playerDY - playerDY) * currentCompletion;
+      cameraPlaneX += (playerAnimationQueue[playerAnimationQueue.length - 1].cameraPlaneX - cameraPlaneX) * currentCompletion;
+      cameraPlaneY += (playerAnimationQueue[playerAnimationQueue.length - 1].cameraPlaneY - cameraPlaneY) * currentCompletion;
+  
+      currentTimeToCompleteTimer += deltaTime;
+    } else {
+      playerAnimationQueue.shift(); // remove the first item on the queue
+      currentTimeToCompleteTimer = 0.0; // reset the timer to 0
+    }
   }
 
-  if (isRightPressed()) {
-    // rotate 90 degrees clockwise
-    var oldPlayerDX = playerDX;
-    var oldPlayerDY = playerDY;
-    playerDX = -oldPlayerDY;
-    playerDY = oldPlayerDX;
-
-    // also rotate the camera plane
-    var oldCameraPlaneX = cameraPlaneX;
-    var oldCameraPlaneY = cameraPlaneY;
-    cameraPlaneX = -oldCameraPlaneY;
-    cameraPlaneY = oldCameraPlaneX;
-  }
-
-  // check X collision
-  if (mapData[Math.floor(newPlayerX) + mapWidth * Math.floor(playerY)] == 0) {
-    playerX = newPlayerX;
-  }
-
-  // check Y collision
-  if (mapData[Math.floor(playerX) + mapWidth * Math.floor(newPlayerY)] == 0) {
-    playerY = newPlayerY;
-  }
+  
 
   // clear buffer before drawing rays
   for (var i = 0; i < data.length; i +=4 ) {
@@ -319,7 +402,29 @@ function update(deltaTime) {
       data[i + 2] = finalB;
       data[i + 3] = 255;
     }
+
+    // write to the z buffer
+    zBuffer[x] = cameraPlaneDist;
   }
+
+  // for distance sorting, not used
+  var spriteDistance = (
+    (playerX - spriteX) * (playerX - spriteX) +
+    (playerY - spriteY) * (playerY - spriteY)
+  );
+
+  // translation?
+  var spriteXTranslated = spriteX - playerX;
+  var spriteYTranslated = spriteY - playerY;
+
+  // inverse camera matrix
+  var invDet = 1.0 / (cameraPlaneX * playerDY - playerDX * cameraPlaneY);
+
+  var spriteTransformX = invDet * (playerDY * spriteXTranslated - playerDX * spriteYTranslated);
+  var spriteTransformY = invDet * (-cameraPlaneY * spriteXTranslated + cameraPlaneX * spriteYTranslated); // depth
+
+  spriteScreenX = Math.floor((offscreenCanvas.width / 2) * (1 + spriteTransformX / spriteTransformY));
+  spriteHeight = Math.abs(Math.floor(offscreenCanvas.height / spriteTransformY));
 
   // get delta time for display
   deltaTimeStr = deltaTime.toPrecision(5);
@@ -338,6 +443,19 @@ function draw() {
         ctx.strokeRect(x * tileSize, y * tileSize + 30, tileSize, tileSize);
       }
     }
+  }
+
+  // lines for raycasts
+  ctx.strokeStyle = "#ff000011";
+  for (var i = 0; i < rays.length; i++)
+  {
+    ctx.beginPath();
+    ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
+    ctx.lineTo(
+      playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength,
+      playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength + 30
+    );
+    ctx.stroke();
   }
 
   // draw player
@@ -366,38 +484,36 @@ function draw() {
   ctx.strokeStyle = "blue";
   ctx.beginPath();
   ctx.moveTo(
-    playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 4,
-    playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 4 + 30
+    playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 2,
+    playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 2 + 30
   );
   ctx.lineTo(
-    playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 4,
-    playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 4 + 30
+    playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 2,
+    playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 2 + 30
   );
   ctx.stroke();
 
-  // line for raycasts
-  ctx.strokeStyle = "red";
-  for (var i = 0; i < rays.length; i++)
-  {
-    ctx.beginPath();
-    ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
-    ctx.lineTo(
-      playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength,
-      playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength + 30
-    );
-    ctx.stroke();
-  }
+  // draw sprite
+  ctx.fillStyle = "purple";
+  ctx.beginPath();
+  ctx.arc(
+    spriteX * tileSize,
+    spriteY * tileSize + 30, tileSize / 4,
+    0,
+    Math.PI * 2
+  );
+  ctx.fill();
+  ctx.closePath();
 
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
 
-  // test drawing goblin onto the offscreen canvas
-  const goblinSize = 280;
+  // test drawing sprite onto the offscreen canvas
   offscreenCtx.drawImage(
     goblinImg,
-    offscreenCanvas.width / 2 - goblinSize / 2,
-    offscreenCanvas.height / 2 - goblinSize / 2 - goblinSize / 10,
-    goblinSize, goblinSize
+    spriteScreenX - spriteHeight / 2,
+    offscreenCanvas.height / 2 - spriteHeight / 2,
+    spriteHeight, spriteHeight
   );
 
   // draw offscreen canvas on main canvas
