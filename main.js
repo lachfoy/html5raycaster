@@ -83,22 +83,13 @@ var playerDX = 1;
 var playerDY = 0;
 var cameraPlaneX = 0;
 var cameraPlaneY = 0.66; // 2 * atan(0.66 / 1.0) = 66 degrees
+var playerAngle = 0;
 
 // player animation queue stores n number of player position states and animates smoothly between them
-const maxPlayerPositionStates = 2;
-var playerAnimationQueue = [];
-const timeToCompletePerAnimation = 0.5;
+const maxTransformStates = 1;
+var transformStateQueue = [];
+const timeToCompletePerAnimation = 0.3;
 var currentTimeToCompleteTimer = 0.0;
-
-// push initial player state
-playerAnimationQueue.push({
-  playerX,
-  playerY,
-  playerDX,
-  playerDY,
-  cameraPlaneX,
-  cameraPlaneY
-});
 
 /// TEXTURE
 const goblinImg = document.getElementById("goblinImg");
@@ -139,15 +130,14 @@ var deltaTimeStr;
 function update(deltaTime) {
   /// PLAYER MOVEMENT
   // player can ONLY move if the animation queue has a free spot. otherwise the animation queue has to "catch up"
-  if (playerAnimationQueue.length < maxPlayerPositionStates) {
+  if (transformStateQueue.length < maxTransformStates) {
+    var transformStateChanged = false; // set this to true whenever the player requests a new state
+
     // get an "empty" state struct to fill
-    var playerPositionState = {
+    var newTransformState = {
       playerX,
       playerY,
-      playerDX,
-      playerDY,
-      cameraPlaneX,
-      cameraPlaneY
+      playerAngle
     };
 
     var newPlayerX;
@@ -167,90 +157,75 @@ function update(deltaTime) {
 
     if (isLeftPressed()) {
       // rotate 90 degrees counter-clockwise
-      var oldPlayerDX = playerDX;
-      var oldPlayerDY = playerDY;
-      playerDX = oldPlayerDY;
-      playerDY = -oldPlayerDX;
-      
-      // also rotate the camera plane
-      var oldCameraPlaneX = cameraPlaneX;
-      var oldCameraPlaneY = cameraPlaneY;
-      cameraPlaneX = oldCameraPlaneY;
-      cameraPlaneY = -oldCameraPlaneX;
+      newTransformState.playerAngle = playerAngle - 1.5708; // approx 90 degrees in radians
+      transformStateChanged = true;
     }
 
     if (isRightPressed()) {
       // rotate 90 degrees clockwise
-      var oldPlayerDX = playerDX;
-      var oldPlayerDY = playerDY;
-      playerDX = -oldPlayerDY;
-      playerDY = oldPlayerDX;
-
-      // also rotate the camera plane
-      var oldCameraPlaneX = cameraPlaneX;
-      var oldCameraPlaneY = cameraPlaneY;
-      cameraPlaneX = -oldCameraPlaneY;
-      cameraPlaneY = oldCameraPlaneX;
+      newTransformState.playerAngle = playerAngle + 1.5708; // approx 90 degrees in radians
+      transformStateChanged = true;
     }
 
     // check X collision
     if (mapData[Math.floor(newPlayerX) + mapWidth * Math.floor(playerY)] == 0) {
       //playerX = newPlayerX;
-
-      playerPositionState.playerX = newPlayerX;
+      newTransformState.playerX = newPlayerX;
+      transformStateChanged = true;
     }
 
     // check Y collision
     if (mapData[Math.floor(playerX) + mapWidth * Math.floor(newPlayerY)] == 0) {
       //playerY = newPlayerY;
-
-      playerPositionState.playerY = newPlayerY;
+      newTransformState.playerY = newPlayerY;
+      transformStateChanged = true;
     }
-
-    // only push to the queue if it is a "new" state
-    const matchingStates = (state1, state2) => {
-      return (
-        state1.playerX == state2.playerX &&
-        state1.playerY == state2.playerY &&
-        state1.playerDX == state2.playerDX &&
-        state1.playerDY == state2.playerDY &&
-        state1.cameraPlaneX == state2.cameraPlaneX &&
-        state1.cameraPlaneY == state2.cameraPlaneY
-      );
-    }
-
-    if (!matchingStates(playerPositionState, playerAnimationQueue[0])) {
-      playerAnimationQueue.push(playerPositionState);
-    }
-      
     
+    // helper, not used
+    const stateAlreadyExists = (transformState) => {
+      transformStateQueue.forEach(state => {
+        if (transformState.playerX == state.playerX &&
+          transformState.playerY == state.playerY) {
+          return true;
+        }
+      });
+      return false;
+    }
 
+    // only push to the queue if the state has changed
+    if (transformStateChanged) {
+      transformStateQueue.push(newTransformState);
+    }
   }
-  console.log(playerAnimationQueue);
-  console.log(playerAnimationQueue.length);
 
   /// PLAYER VIEW ANIMATION
-  if (playerAnimationQueue.length > 1) {
+  // if there are any states to animate
+  if (transformStateQueue.length > 0) {
     if (currentTimeToCompleteTimer < timeToCompletePerAnimation) {
       // completion scaled to a 0 to 1 range
-      var currentCompletion = 1.0 * (currentTimeToCompleteTimer / timeToCompletePerAnimation);
+      var currentCompletion = currentTimeToCompleteTimer / timeToCompletePerAnimation;
 
-      // lerp
-      playerX += (playerAnimationQueue[playerAnimationQueue.length - 1].playerX - playerX) * currentCompletion;
-      playerY += (playerAnimationQueue[playerAnimationQueue.length - 1].playerY - playerY) * currentCompletion;
-      playerDX += (playerAnimationQueue[playerAnimationQueue.length - 1].playerDX - playerDX) * currentCompletion;
-      playerDY += (playerAnimationQueue[playerAnimationQueue.length - 1].playerDY - playerDY) * currentCompletion;
-      cameraPlaneX += (playerAnimationQueue[playerAnimationQueue.length - 1].cameraPlaneX - cameraPlaneX) * currentCompletion;
-      cameraPlaneY += (playerAnimationQueue[playerAnimationQueue.length - 1].cameraPlaneY - cameraPlaneY) * currentCompletion;
+      // lerp from current position to the first position state in the queue
+      playerX += (transformStateQueue[0].playerX - playerX) * currentCompletion;
+      playerY += (transformStateQueue[0].playerY - playerY) * currentCompletion;
+
+      // lerp from current angle to first angle in queue
+      playerAngle += (transformStateQueue[0].playerAngle - playerAngle) * currentCompletion;
+
+      // apply rotations
+      playerDX = Math.cos(playerAngle);
+      playerDY = Math.sin(playerAngle);
+
+      // also rotate the camera plane with the y portion of rotation matrix
+      cameraPlaneX = Math.sin(-playerAngle) * 0.66; // make sure to resize the camera back to its original fov
+      cameraPlaneY = Math.cos(playerAngle) * 0.66; // make sure to resize the camera back to its original fov
   
       currentTimeToCompleteTimer += deltaTime;
     } else {
-      playerAnimationQueue.shift(); // remove the first item on the queue
+      transformStateQueue.shift(); // remove the first item on the queue
       currentTimeToCompleteTimer = 0.0; // reset the timer to 0
     }
   }
-
-  
 
   // clear buffer before drawing rays
   for (var i = 0; i < data.length; i +=4 ) {
