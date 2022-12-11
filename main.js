@@ -131,14 +131,14 @@ function update(deltaTime) {
   /// PLAYER MOVEMENT
   // player can ONLY move if the animation queue has a free spot. otherwise the animation queue has to "catch up"
   if (transformStateQueue.length < maxTransformStates) {
-    var transformStateChanged = false; // set this to true whenever the player requests a new state
-
     // get an "empty" state struct to fill
     var newTransformState = {
       playerX,
       playerY,
       playerAngle
     };
+
+    var transformStateChanged = false; // set this to true whenever the player requests a new state
 
     var newPlayerX;
     var newPlayerY;
@@ -216,7 +216,7 @@ function update(deltaTime) {
       playerDX = Math.cos(playerAngle);
       playerDY = Math.sin(playerAngle);
 
-      // also rotate the camera plane with the y portion of rotation matrix
+      // also rotate the camera plane (perpendicularly)
       cameraPlaneX = Math.sin(-playerAngle) * 0.66; // make sure to resize the camera back to its original fov
       cameraPlaneY = Math.cos(playerAngle) * 0.66; // make sure to resize the camera back to its original fov
   
@@ -227,11 +227,13 @@ function update(deltaTime) {
     }
   }
 
-  // clear buffer before drawing rays
+  // draw a blank background
+  // also serves to overwrite the previous data
+  var bigIntColor = parseInt("303030", 16);
   for (var i = 0; i < data.length; i +=4 ) {
-    data[i] = 13;
-    data[i + 1] = 13;
-    data[i + 2] = 13;
+    data[i] = (bigIntColor >> 16) & 255;
+    data[i + 1] = (bigIntColor >> 8) & 255;
+    data[i + 2] = bigIntColor & 255;
     data[i + 3] = 255;
   }
 
@@ -407,79 +409,6 @@ function update(deltaTime) {
 
 ctx.imageSmoothingEnabled = false;
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // draw map
-  const tileSize = 28;
-  ctx.strokeStyle = "black";
-  for (var x = 0; x < mapWidth; x++) {
-    for (var y = 0; y < mapHeight; y++) {
-      if (mapData[x + mapWidth * y] == 1) {
-        ctx.strokeRect(x * tileSize, y * tileSize + 30, tileSize, tileSize);
-      }
-    }
-  }
-
-  // lines for raycasts
-  ctx.strokeStyle = "#ff000011";
-  for (var i = 0; i < rays.length; i++)
-  {
-    ctx.beginPath();
-    ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
-    ctx.lineTo(
-      playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength,
-      playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength + 30
-    );
-    ctx.stroke();
-  }
-
-  // draw player
-  ctx.fillStyle = "green";
-  ctx.beginPath();
-  ctx.arc(
-    playerX * tileSize,
-    playerY * tileSize + 30, tileSize / 4,
-    0,
-    Math.PI * 2
-  );
-  ctx.fill();
-  ctx.closePath();
-
-  // line for direction
-  ctx.strokeStyle = "black";
-  ctx.beginPath();
-  ctx.moveTo(playerX * tileSize, playerY * tileSize + 30);
-  ctx.lineTo(
-    playerX * tileSize + playerDX * tileSize / 2,
-    playerY * tileSize + playerDY * tileSize / 2 + 30
-  );
-  ctx.stroke();
-
-  // line for camera plane
-  ctx.strokeStyle = "blue";
-  ctx.beginPath();
-  ctx.moveTo(
-    playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 2,
-    playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 2 + 30
-  );
-  ctx.lineTo(
-    playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 2,
-    playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 2 + 30
-  );
-  ctx.stroke();
-
-  // draw sprite
-  ctx.fillStyle = "purple";
-  ctx.beginPath();
-  ctx.arc(
-    spriteX * tileSize,
-    spriteY * tileSize + 30, tileSize / 4,
-    0,
-    Math.PI * 2
-  );
-  ctx.fill();
-  ctx.closePath();
-
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
 
@@ -492,14 +421,94 @@ function draw() {
   );
 
   // draw offscreen canvas on main canvas
-  ctx.drawImage(offscreenCanvas, 288, 0, 512, 384);
+  ctx.drawImage(offscreenCanvas, 0, 0, canvas.width, canvas.height);
+
+  // draw mini-map
+  if (0) {
+    const tileSize = 10;
+    const xOffset = canvas.width - mapWidth * tileSize;
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(xOffset, 0, mapWidth * tileSize, mapHeight * tileSize);
+
+    ctx.fillStyle = "black";
+    for (var x = 0; x < mapWidth; x++) {
+      for (var y = 0; y < mapHeight; y++) {
+        if (mapData[x + mapWidth * y] == 1) {
+          ctx.fillRect(x * tileSize + xOffset, y * tileSize, tileSize, tileSize);
+        }
+      }
+    }
+
+    // minimap lines for raycasts
+    ctx.strokeStyle = "#ff000011";
+    for (var i = 0; i < rays.length; i++)
+    {
+      ctx.beginPath();
+      ctx.moveTo(playerX * tileSize + xOffset, playerY * tileSize);
+      ctx.lineTo(
+        playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength + xOffset,
+        playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength
+      );
+      ctx.stroke();
+    }
+
+    // mini-map draw player
+    ctx.fillStyle = "green";
+    ctx.beginPath();
+    ctx.arc(
+      playerX * tileSize + xOffset,
+      playerY * tileSize,
+      tileSize / 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    ctx.closePath();
+
+    // mini-map line for direction
+    ctx.strokeStyle = "black";
+    ctx.beginPath();
+    ctx.moveTo(playerX * tileSize + xOffset, playerY * tileSize);
+    ctx.lineTo(
+      playerX * tileSize + playerDX * tileSize / 2 + xOffset,
+      playerY * tileSize + playerDY * tileSize / 2
+    );
+    ctx.stroke();
+
+    // mini-map line for camera plane
+    ctx.strokeStyle = "blue";
+    ctx.beginPath();
+    ctx.moveTo(
+      playerX * tileSize + playerDX * tileSize / 2 - cameraPlaneX * tileSize / 2 + xOffset,
+      playerY * tileSize + playerDY * tileSize / 2 - cameraPlaneY * tileSize / 2
+    );
+    ctx.lineTo(
+      playerX * tileSize + playerDX * tileSize / 2 + cameraPlaneX * tileSize / 2 + xOffset,
+      playerY * tileSize + playerDY * tileSize / 2 + cameraPlaneY * tileSize / 2
+    );
+    ctx.stroke();
+
+    // mini-map draw sprite
+    ctx.fillStyle = "purple";
+    ctx.beginPath();
+    ctx.arc(
+      spriteX * tileSize + xOffset,
+      spriteY * tileSize,
+      tileSize / 4,
+      0,
+      Math.PI * 2
+    );
+    ctx.fill();
+    ctx.closePath();
+  }
 
   // draw delta time
-  ctx.fillStyle = "black";
-  ctx.font = '14px monospace';
+  ctx.fillStyle = "red";
+  ctx.font = '12px monospace';
   ctx.textAlign = "left";
   ctx.textBaseline = 'top';
-  ctx.fillText("deltaTime: " + deltaTimeStr, 10, 10);
+  ctx.fillText("" + deltaTimeStr, 10, 10);
 }
 
 function start() {
