@@ -100,10 +100,10 @@ imgLoaderCtx.drawImage(wallImg, 0, 0);
 const wallImgData = imgLoaderCtx.getImageData(0, 0, imgLoaderCanvas.width, imgLoaderCanvas.height).data;
 
 /// SPRITE TEST
-var spriteX = 7.5;
-var spriteY = 3.5;
-var spriteScreenX;
-var spriteHeight;
+// var spriteX = 7.5;
+// var spriteY = 3.5;
+// var spriteScreenX;
+// var spriteHeight;
 
 /// OFFSCREEN CANVAS
 const offscreenCanvas = new OffscreenCanvas(canvas.width / 4, canvas.height / 4); // quarter resolution
