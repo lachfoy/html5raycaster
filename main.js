@@ -86,27 +86,27 @@ var cameraPlaneY = 0.66; // 2 * atan(0.66 / 1.0) = 66 degrees
 var playerAngle = 0;
 
 // player animation queue stores n number of player position states and animates smoothly between them
-const maxTransformStates = 1;
+const maxTransformStates = 1; // more than 1 state is buggy atm
 var transformStateQueue = [];
 const timeToCompletePerAnimation = 0.5;
 var currentTimeToCompleteTimer = 0.0;
 
 /// TEXTURES
-const spriteImg = document.getElementById("spriteImg");
+//const spriteImg = document.getElementById("spriteImg");
 const wallImg = document.getElementById("wallImg");
 const imgLoaderCanvas = new OffscreenCanvas(wallImg.width, wallImg.height);
 const imgLoaderCtx = imgLoaderCanvas.getContext("2d");
 imgLoaderCtx.drawImage(wallImg, 0, 0);
 const wallImgData = imgLoaderCtx.getImageData(0, 0, imgLoaderCanvas.width, imgLoaderCanvas.height).data;
 
-/// ENTITY TEST
+/// SPRITE TEST
 var spriteX = 7.5;
 var spriteY = 3.5;
 var spriteScreenX;
 var spriteHeight;
 
 /// OFFSCREEN CANVAS
-const offscreenCanvas = new OffscreenCanvas(200, 150);
+const offscreenCanvas = new OffscreenCanvas(canvas.width / 4, canvas.height / 4); // quarter resolution
 const offscreenCtx = offscreenCanvas.getContext("2d");
 
 var imageData = offscreenCtx.createImageData(
@@ -119,7 +119,7 @@ offscreenCtx.imageSmoothingEnabled = false;
 var data = imageData.data;
 
 // 1d depth buffer
-var zBuffer = new Float32Array(offscreenCanvas.width);
+//var zBuffer = new Float32Array(offscreenCanvas.width);
 
 // list of rays for debug drawing
 var rays = []; // contains rayDX, rayDY, and rayLength
@@ -181,15 +181,15 @@ function update(deltaTime) {
     }
     
     // helper, not used
-    const stateAlreadyExists = (transformState) => {
-      transformStateQueue.forEach(state => {
-        if (transformState.playerX == state.playerX &&
-          transformState.playerY == state.playerY) {
-          return true;
-        }
-      });
-      return false;
-    }
+    // const stateAlreadyExists = (transformState) => {
+    //   transformStateQueue.forEach(state => {
+    //     if (transformState.playerX == state.playerX &&
+    //       transformState.playerY == state.playerY) {
+    //       return true;
+    //     }
+    //   });
+    //   return false;
+    // }
 
     // only push to the queue if the state has changed
     if (transformStateChanged) {
@@ -226,6 +226,12 @@ function update(deltaTime) {
     }
   }
 
+  // get delta time for display
+  deltaTimeStr = deltaTime.toPrecision(5);
+}
+
+ctx.imageSmoothingEnabled = false;
+function draw() {
   // draw a blank background
   // also serves to overwrite the previous data
   var bigIntColor = parseInt("000000", 16);
@@ -236,11 +242,10 @@ function update(deltaTime) {
     data[i + 3] = 255;
   }
 
-
   // clear ray list, debug only
   rays = [];
 
-  // cast ray
+  // cast ray for each vertical pixel
   for (var x = 0; x < offscreenCanvas.width; x++) {
     // calculcate camera space
     var cameraX = 2 * x / offscreenCanvas.width - 1;
@@ -380,34 +385,28 @@ function update(deltaTime) {
     }
 
     // write to the z buffer
-    zBuffer[x] = cameraPlaneDist;
+    //zBuffer[x] = cameraPlaneDist;
   }
 
-  // for distance sorting, not used currently
-  var spriteDistance = (
-    (playerX - spriteX) * (playerX - spriteX) +
-    (playerY - spriteY) * (playerY - spriteY)
-  );
+  // // for distance sorting, not used currently
+  // var spriteDistance = (
+  //   (playerX - spriteX) * (playerX - spriteX) +
+  //   (playerY - spriteY) * (playerY - spriteY)
+  // );
 
-  // translation
-  var spriteXTranslated = spriteX - playerX;
-  var spriteYTranslated = spriteY - playerY;
+  // // translation
+  // var spriteXTranslated = spriteX - playerX;
+  // var spriteYTranslated = spriteY - playerY;
 
-  // inverse camera matrix
-  var invDet = 1.0 / (cameraPlaneX * playerDY - playerDX * cameraPlaneY);
+  // // inverse camera matrix
+  // var invDet = 1.0 / (cameraPlaneX * playerDY - playerDX * cameraPlaneY);
 
-  var spriteTransformX = invDet * (playerDY * spriteXTranslated - playerDX * spriteYTranslated);
-  var spriteTransformY = invDet * (-cameraPlaneY * spriteXTranslated + cameraPlaneX * spriteYTranslated); // depth
+  // var spriteTransformX = invDet * (playerDY * spriteXTranslated - playerDX * spriteYTranslated);
+  // var spriteTransformY = invDet * (-cameraPlaneY * spriteXTranslated + cameraPlaneX * spriteYTranslated); // depth
 
-  spriteScreenX = Math.floor((offscreenCanvas.width / 2) * (1 + spriteTransformX / spriteTransformY));
-  spriteHeight = Math.abs(Math.floor(offscreenCanvas.height / spriteTransformY));
+  // spriteScreenX = Math.floor((offscreenCanvas.width / 2) * (1 + spriteTransformX / spriteTransformY));
+  // spriteHeight = Math.abs(Math.floor(offscreenCanvas.height / spriteTransformY));
 
-  // get delta time for display
-  deltaTimeStr = deltaTime.toPrecision(5);
-}
-
-ctx.imageSmoothingEnabled = false;
-function draw() {
   // copy the image data to the offscreen canvas
   offscreenCtx.putImageData(imageData, 0, 0);
 
