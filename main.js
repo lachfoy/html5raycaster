@@ -418,6 +418,7 @@ function draw() {
   //   spriteHeight, spriteHeight
   // );
 
+  // mini-map tile size and offset
   const tileSize = 16;
   const xOffset = canvas.width - mapWidth * tileSize;
   const yOffset = canvas.height - mapHeight * tileSize;
