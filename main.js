@@ -88,17 +88,16 @@ var playerAngle = 0;
 // player animation queue stores n number of player position states and animates smoothly between them
 const maxTransformStates = 1;
 var transformStateQueue = [];
-const timeToCompletePerAnimation = 0.3;
+const timeToCompletePerAnimation = 0.5;
 var currentTimeToCompleteTimer = 0.0;
 
-/// TEXTURE
-const goblinImg = document.getElementById("goblinImg");
-const brickImg = document.getElementById("brickImg");
-var wallTextureSize = 32;
-const imgLoaderCanvas = new OffscreenCanvas(wallTextureSize, wallTextureSize);
+/// TEXTURES
+const spriteImg = document.getElementById("spriteImg");
+const wallImg = document.getElementById("wallImg");
+const imgLoaderCanvas = new OffscreenCanvas(wallImg.width, wallImg.height);
 const imgLoaderCtx = imgLoaderCanvas.getContext("2d");
-imgLoaderCtx.drawImage(brickImg, 0, 0);
-const brickImgData = imgLoaderCtx.getImageData(0, 0, wallTextureSize, wallTextureSize).data;
+imgLoaderCtx.drawImage(wallImg, 0, 0);
+const wallImgData = imgLoaderCtx.getImageData(0, 0, imgLoaderCanvas.width, imgLoaderCanvas.height).data;
 
 /// ENTITY TEST
 var spriteX = 7.5;
@@ -107,7 +106,7 @@ var spriteScreenX;
 var spriteHeight;
 
 /// OFFSCREEN CANVAS
-const offscreenCanvas = new OffscreenCanvas(400, 300);
+const offscreenCanvas = new OffscreenCanvas(200, 150);
 const offscreenCtx = offscreenCanvas.getContext("2d");
 
 var imageData = offscreenCtx.createImageData(
@@ -229,7 +228,7 @@ function update(deltaTime) {
 
   // draw a blank background
   // also serves to overwrite the previous data
-  var bigIntColor = parseInt("303030", 16);
+  var bigIntColor = parseInt("000000", 16);
   for (var i = 0; i < data.length; i +=4 ) {
     data[i] = (bigIntColor >> 16) & 255;
     data[i + 1] = (bigIntColor >> 8) & 255;
@@ -237,9 +236,11 @@ function update(deltaTime) {
     data[i + 3] = 255;
   }
 
-  // cast ray
-  // clear ray list
+
+  // clear ray list, debug only
   rays = [];
+
+  // cast ray
   for (var x = 0; x < offscreenCanvas.width; x++) {
     // calculcate camera space
     var cameraX = 2 * x / offscreenCanvas.width - 1;
@@ -255,8 +256,6 @@ function update(deltaTime) {
     var sideDistX;
     var sideDistY;
     
-    //var deltaDistX = Math.sqrt(1 + (rayDY * rayDY) / (rayDX * rayDX));
-    //var deltaDistY = Math.sqrt(1 + (rayDX * rayDX) / (rayDY * rayDY));
     var deltaDistX = Math.abs(1 / rayDX);
     var deltaDistY = Math.abs(1 / rayDY);
 
@@ -312,7 +311,7 @@ function update(deltaTime) {
     }
 
     // push the ray for debug drawing
-    rays.push({rayDX, rayDY, rayLength: cameraPlaneDist});
+    rays.push({ rayDX, rayDY, cameraPlaneDist });
 
     // calculate the start and end point for drawing a vertical line
     var lineHeight = Math.floor(offscreenCanvas.height / cameraPlaneDist);
@@ -330,41 +329,41 @@ function update(deltaTime) {
     }
     wallX -= Math.floor(wallX);
 
-    var texX = Math.floor(wallX * wallTextureSize);
+    var texX = Math.floor(wallX * wallImg.width);
     if (side == 0 && rayDX > 0) {
-      texX = wallTextureSize - texX - 1;
+      texX = wallImg.width - texX - 1;
     }
 
     if (side == 1 && rayDY < 0) {
-      texX = wallTextureSize - texX - 1;
+      texX = wallImg.width - texX - 1;
     }
 
-    var textureStep = 1.0 * wallTextureSize / lineHeight;
+    var textureStep = 1.0 * wallImg.width / lineHeight;
     var texPos = (drawStart - offscreenCanvas.height / 2 + lineHeight / 2) * textureStep;
 
     // linear fog caluclation
     var fogStart = 4;
     var fogFinish = 8;
     var fogFactor = (fogFinish - cameraPlaneDist) / (fogFinish - fogStart);
-    var fogColorR = 13;
-    var fogColorG = 13;
-    var fogColorB = 13;
+    var fogColorR = 0;
+    var fogColorG = 0;
+    var fogColorB = 0;
 
     // draw lines
     for (var y = drawStart; y < drawEnd; y++) {
       // get the texture color
       var texY = Math.floor(texPos);
       texPos += textureStep;
-      var textureIndex = (texX + wallTextureSize * texY) * 4;
-      var textureColorR = brickImgData[textureIndex]; // manually brighten up the texture
-      var textureColorG = brickImgData[textureIndex + 1];
-      var textureColorB = brickImgData[textureIndex + 2];
+      var textureIndex = (texX + wallImg.width * texY) * 4;
+      var textureColorR = wallImgData[textureIndex];
+      var textureColorG = wallImgData[textureIndex + 1];
+      var textureColorB = wallImgData[textureIndex + 2];
 
       // darken the color on Y facing walls
       if (side == 1) {
-        textureColorR /= 3;
-        textureColorG /= 3;
-        textureColorB /= 3;
+        textureColorR /= 2;
+        textureColorG /= 2;
+        textureColorB /= 2;
       }
 
       // apply fog
@@ -384,13 +383,13 @@ function update(deltaTime) {
     zBuffer[x] = cameraPlaneDist;
   }
 
-  // for distance sorting, not used
+  // for distance sorting, not used currently
   var spriteDistance = (
     (playerX - spriteX) * (playerX - spriteX) +
     (playerY - spriteY) * (playerY - spriteY)
   );
 
-  // translation?
+  // translation
   var spriteXTranslated = spriteX - playerX;
   var spriteYTranslated = spriteY - playerY;
 
@@ -413,24 +412,24 @@ function draw() {
   offscreenCtx.putImageData(imageData, 0, 0);
 
   // test drawing sprite onto the offscreen canvas
-  offscreenCtx.drawImage(
-    goblinImg,
-    spriteScreenX - spriteHeight / 2,
-    offscreenCanvas.height / 2 - spriteHeight / 2,
-    spriteHeight, spriteHeight
-  );
+  // offscreenCtx.drawImage(
+  //   spriteImg,
+  //   spriteScreenX - spriteHeight / 2,
+  //   offscreenCanvas.height / 2 - spriteHeight / 2,
+  //   spriteHeight, spriteHeight
+  // );
+
+  const tileSize = 16;
+  const xOffset = canvas.width - mapWidth * tileSize;
+  const yOffset = canvas.height - mapHeight * tileSize;
 
   // draw offscreen canvas on main canvas
-  ctx.drawImage(offscreenCanvas, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(offscreenCanvas, 0, 0, xOffset, yOffset);
 
   // draw mini-map
-  if (0) {
-    const tileSize = 10;
-    const xOffset = canvas.width - mapWidth * tileSize;
-
+  if (1) {
     ctx.fillStyle = "white";
     ctx.fillRect(xOffset, 0, mapWidth * tileSize, mapHeight * tileSize);
-
     ctx.fillStyle = "black";
     for (var x = 0; x < mapWidth; x++) {
       for (var y = 0; y < mapHeight; y++) {
@@ -447,8 +446,8 @@ function draw() {
       ctx.beginPath();
       ctx.moveTo(playerX * tileSize + xOffset, playerY * tileSize);
       ctx.lineTo(
-        playerX * tileSize + rays[i].rayDX * tileSize * rays[i].rayLength + xOffset,
-        playerY * tileSize + rays[i].rayDY * tileSize * rays[i].rayLength
+        playerX * tileSize + rays[i].rayDX * tileSize * rays[i].cameraPlaneDist + xOffset,
+        playerY * tileSize + rays[i].rayDY * tileSize * rays[i].cameraPlaneDist
       );
       ctx.stroke();
     }
@@ -490,17 +489,17 @@ function draw() {
     ctx.stroke();
 
     // mini-map draw sprite
-    ctx.fillStyle = "purple";
-    ctx.beginPath();
-    ctx.arc(
-      spriteX * tileSize + xOffset,
-      spriteY * tileSize,
-      tileSize / 4,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    ctx.closePath();
+    // ctx.fillStyle = "purple";
+    // ctx.beginPath();
+    // ctx.arc(
+    //   spriteX * tileSize + xOffset,
+    //   spriteY * tileSize,
+    //   tileSize / 4,
+    //   0,
+    //   Math.PI * 2
+    // );
+    // ctx.fill();
+    // ctx.closePath();
   }
 
   // draw delta time
